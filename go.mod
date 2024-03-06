@@ -1,6 +1,6 @@
 module github.com/john-craig/smartctl_ssacli_exporter
 
-go 1.21.6
+go 1.21.5
 
 require github.com/prometheus/client_golang v1.19.0
 
