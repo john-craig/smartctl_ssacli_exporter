@@ -15,6 +15,7 @@ var _ prometheus.Collector = &SmartctlDiskCollector{}
 type SmartctlDiskCollector struct {
 	diskID string
 	diskN  int
+	conDev string
 
 	model    *prometheus.Desc
 	sn       *prometheus.Desc
@@ -38,7 +39,7 @@ type SmartctlDiskCollector struct {
 }
 
 // NewSmartctlDiskCollector Create new collector
-func NewSmartctlDiskCollector(diskID string, diskN int) *SmartctlDiskCollector {
+func NewSmartctlDiskCollector(diskID string, diskN int, conDev string) *SmartctlDiskCollector {
 	// Init labels
 	var (
 		namespace = "smartctl"
@@ -52,11 +53,12 @@ func NewSmartctlDiskCollector(diskID string, diskN int) *SmartctlDiskCollector {
 		}
 	)
 
-	// Rerutn Colected metric to ch <-
+	// Return Colected metric to ch <-
 	// Include labels
 	return &SmartctlDiskCollector{
 		diskID: diskID,
 		diskN:  diskN,
+		conDev: conDev,
 		rawReadErrorRate: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "rawReadErrorRate"),
 			"Smartctl raw read error rate",
@@ -172,7 +174,7 @@ func (c *SmartctlDiskCollector) Describe(ch chan<- *prometheus.Desc) {
 // Handle error
 func (c *SmartctlDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	if desc, err := c.collect(ch); err != nil {
-		log.Println("[ERROR] failed collecting metric %v: %v", desc, err)
+		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
 		ch <- prometheus.NewInvalidMetric(desc, err)
 		return
 	}
@@ -183,11 +185,11 @@ func (c *SmartctlDiskCollector) collect(ch chan<- prometheus.Metric) (*prometheu
 		return nil, nil
 	}
 
-	cmd := "smartctl -iA -d cciss," + strconv.Itoa(c.diskN) + " /dev/sda | grep ."
+	cmd := "smartctl -iA -d cciss," + strconv.Itoa(c.diskN) + " " + c.conDev + " | grep ."
 	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
 
 	if err != nil {
-		log.Println("[ERROR] smart log: \n%s\n", out)
+		log.Printf("[ERROR] smart log: \n%s\n", string(out))
 		return nil, err
 	}
 	data := parser.ParseSmartctlDisk(string(out))

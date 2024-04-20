@@ -62,7 +62,7 @@ func (c *SsacliLogDiskCollector) Describe(ch chan<- *prometheus.Desc) {
 // Handle error
 func (c *SsacliLogDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	if desc, err := c.collect(ch); err != nil {
-		log.Println("[ERROR] failed collecting metric %v: %v", desc, err)
+		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
 		ch <- prometheus.NewInvalidMetric(desc, err)
 		return
 	}
@@ -77,7 +77,7 @@ func (c *SsacliLogDiskCollector) collect(ch chan<- prometheus.Metric) (*promethe
 	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
 
 	if err != nil {
-		log.Println("[ERROR] smart log: \n%s\n", out)
+		log.Printf("[ERROR] smart log: \n%s\n", string(out))
 		return nil, err
 	}
 

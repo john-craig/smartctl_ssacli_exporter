@@ -3,6 +3,7 @@ package collector
 import (
 	"log"
 	"os/exec"
+	"strings"
 
 	"github.com/john-craig/smartctl_ssacli_exporter/parser"
 	"github.com/prometheus/client_golang/prometheus"
@@ -10,6 +11,7 @@ import (
 
 // ConID save controller slot number
 var ConID string
+var ConDev string
 
 var _ prometheus.Collector = &SsacliSumCollector{}
 
@@ -102,7 +104,7 @@ func (c *SsacliSumCollector) Describe(ch chan<- *prometheus.Desc) {
 // Handle error
 func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 	if desc, err := c.collect(ch); err != nil {
-		log.Println("[ERROR] failed collecting metric %v: %v", desc, err)
+		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
 		ch <- prometheus.NewInvalidMetric(desc, err)
 		return
 	}
@@ -113,7 +115,7 @@ func (c *SsacliSumCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
 
 	if err != nil {
-		log.Println("[ERROR] smart log: \n%s\n", out)
+		log.Printf("[ERROR] smart log: \n%s\n", string(out))
 		return nil, err
 	}
 
@@ -178,5 +180,24 @@ func (c *SsacliSumCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 		)
 
 	}
+
+	// Use the `lsscsi -g` command to determine which controllers
+	// correspond to which /dev/sga path
+	cmd = "lsscsi -g"
+	out, err = exec.Command("bash", "-c", cmd).CombinedOutput()
+
+	if err != nil {
+		log.Printf("[ERROR] failed collecting metric %v: %v", out, err)
+		return nil, nil
+	}
+
+	scsiDisks := strings.Split(string(out), "\n")
+	for _, scsiDisk := range scsiDisks {
+		scsiFields := strings.Fields(scsiDisk)
+		if scsiFields[1] == "storage" {
+			ConDev = scsiFields[6]
+		}
+	}
+
 	return nil, nil
 }

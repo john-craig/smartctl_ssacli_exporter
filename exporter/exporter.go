@@ -31,7 +31,7 @@ func New() *Exporter {
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	collector.NewSsacliSumCollector().Describe(ch)
 	collector.NewSsacliPhysDiskCollector("", "").Describe(ch)
-	collector.NewSmartctlDiskCollector("", 0).Describe(ch)
+	collector.NewSmartctlDiskCollector("", 0, "").Describe(ch)
 	collector.NewSsacliLogDiskCollector("", "").Describe(ch)
 }
 
@@ -40,6 +40,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	collector.NewSsacliSumCollector().Collect(ch)
 	conID := collector.ConID
+	conDev := collector.ConDev
 
 	cmd := "ssacli ctrl slot=" + conID + " pd all show status| grep . | cut -f5 -d' '"
 	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
@@ -54,7 +55,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	for _, physDisk := range physDisk {
 		if physDisk != "" {
 			collector.NewSsacliPhysDiskCollector(physDisk, conID).Collect(ch)
-			collector.NewSmartctlDiskCollector(physDisk, physDiskN).Collect(ch)
+			collector.NewSmartctlDiskCollector(physDisk, physDiskN, conDev).Collect(ch)
 			physDiskN++
 		}
 	}

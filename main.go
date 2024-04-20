@@ -25,7 +25,7 @@ func main() {
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
 
-	log.Println("Beginning to serve on port ", *listenAddr)
+	log.Printf("Beginning to serve on port ", *listenAddr)
 
 	if err := http.ListenAndServe(*listenAddr, nil); err != nil {
 		log.Fatalf("Cannot start exporter: %s", err)
