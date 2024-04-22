@@ -68,7 +68,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		physDiskLines := strings.Split(string(out), "\n")
-		physDiskN := 1
+		physDiskN := 0
 		for _, physDiskLine := range physDiskLines {
 			if strings.TrimSpace(physDiskLine) == "" {
 				continue

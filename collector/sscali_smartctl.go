@@ -41,7 +41,6 @@ func NewSmartctlDiskCollector(
 
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to execute shell command", "out", string(out))
-		return nil
 	}
 	json := parseJSON(string(out))
 
