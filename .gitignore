@@ -15,4 +15,6 @@
 # vendor/
 
 # OS garbage
-*.DS_Storesmartctl_ssacli_exporter
+*.DS_Store
+
+smartctl_ssacli_exporter
