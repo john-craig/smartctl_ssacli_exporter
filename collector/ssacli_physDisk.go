@@ -1,9 +1,10 @@
 package collector
 
 import (
-	"log"
 	"os/exec"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/john-craig/smartctl_ssacli_exporter/parser"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -12,14 +13,18 @@ var _ prometheus.Collector = &SsacliPhysDiskCollector{}
 
 // SsacliPhysDiskCollector Contain raid controller detail information
 type SsacliPhysDiskCollector struct {
-	diskID  string
-	conID   string
+	diskID     string
+	conID      string
+	ssacliPath string
+
+	logger log.Logger
+
 	curTemp *prometheus.Desc
 	maxTemp *prometheus.Desc
 }
 
 // NewSsacliPhysDiskCollector Create new collector
-func NewSsacliPhysDiskCollector(diskID, conID string) *SsacliPhysDiskCollector {
+func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliPath string) *SsacliPhysDiskCollector {
 	// Init labels
 	var (
 		namespace = "ssacli"
@@ -41,8 +46,10 @@ func NewSsacliPhysDiskCollector(diskID, conID string) *SsacliPhysDiskCollector {
 	// Rerutn Colected metric to ch <-
 	// Include labels
 	return &SsacliPhysDiskCollector{
-		diskID: diskID,
-		conID:  conID,
+		diskID:     diskID,
+		conID:      conID,
+		ssacliPath: ssacliPath,
+		logger:     logger,
 		curTemp: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "curTemp"),
 			"Actual physical disk temperature",
@@ -69,63 +76,52 @@ func (c *SsacliPhysDiskCollector) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
-// Collect create collector
-// Get metric
-// Handle error
 func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
-	if desc, err := c.collect(ch); err != nil {
-		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
-		ch <- prometheus.NewInvalidMetric(desc, err)
-		return
-	}
-}
+	// Export logic raid status
+	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: Collect function called")
 
-func (c *SsacliPhysDiskCollector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
-	if c.diskID == "" {
-		return nil, nil
-	}
-
-	cmd := "ssacli ctrl slot=" + c.conID + " pd " + c.diskID + " show detail | grep ."
-	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
+	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+	out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "pd", c.diskID, "show", "detail").CombinedOutput()
+	level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
 
 	if err != nil {
-		log.Printf("[ERROR] smart log: \n%s\n", string(out))
-		return nil, err
+		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+		return
 	}
 
 	data := parser.ParseSsacliPhysDisk(string(out))
 
-	if data == nil {
-		log.Fatal("Unable get data from ssacli sumarry exporter")
-		return nil, nil
-	}
+	// if data == nil {
+	// 	log.Fatal("Unable get data from ssacli sumarry exporter")
+	// 	return nil, nil
+	// }
 
 	var (
 		labels = []string{
 			c.diskID,
-			data.SsacliPhysDiskData[0].Status,
-			data.SsacliPhysDiskData[0].DriveType,
-			data.SsacliPhysDiskData[0].IntType,
-			data.SsacliPhysDiskData[0].Size,
-			data.SsacliPhysDiskData[0].BlockSize,
-			data.SsacliPhysDiskData[0].SN,
-			data.SsacliPhysDiskData[0].WWID,
-			data.SsacliPhysDiskData[0].Model,
-			data.SsacliPhysDiskData[0].Bay,
+			data.SsacliPhysDiskData.Status,
+			data.SsacliPhysDiskData.DriveType,
+			data.SsacliPhysDiskData.IntType,
+			data.SsacliPhysDiskData.Size,
+			data.SsacliPhysDiskData.BlockSize,
+			data.SsacliPhysDiskData.SN,
+			data.SsacliPhysDiskData.WWID,
+			data.SsacliPhysDiskData.Model,
+			data.SsacliPhysDiskData.Bay,
 		}
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		c.curTemp,
 		prometheus.GaugeValue,
-		float64(data.SsacliPhysDiskData[0].CurTemp),
+		float64(data.SsacliPhysDiskData.CurTemp),
 		labels...,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.maxTemp,
 		prometheus.GaugeValue,
-		float64(data.SsacliPhysDiskData[0].MaxTemp),
+		float64(data.SsacliPhysDiskData.MaxTemp),
 		labels...,
 	)
-	return nil, nil
+	return
 }

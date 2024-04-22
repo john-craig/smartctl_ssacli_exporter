@@ -6,7 +6,7 @@ import (
 
 // SsacliPhysDisk data structure for output
 type SsacliPhysDisk struct {
-	SsacliPhysDiskData []SsacliPhysDiskData
+	SsacliPhysDiskData SsacliPhysDiskData
 }
 
 // SsacliPhysDiskData data structure for output
@@ -38,6 +38,10 @@ func parseSsacliPhysDisk(s string) *SsacliPhysDisk {
 	)
 	for _, line := range strings.Split(s, "\n") {
 		kvs := strings.Trim(line, " \t")
+		if kvs == "" {
+			continue
+		}
+
 		kv := strings.Split(kvs, ": ")
 
 		if len(kv) == 2 {
@@ -70,9 +74,6 @@ func parseSsacliPhysDisk(s string) *SsacliPhysDisk {
 	}
 
 	data := SsacliPhysDisk{
-		SsacliPhysDiskData: []SsacliPhysDiskData{
-			tmp,
-		},
-	}
+		SsacliPhysDiskData: tmp}
 	return &data
 }

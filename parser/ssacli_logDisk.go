@@ -6,7 +6,7 @@ import (
 
 // SsacliLogDisk data structure for output
 type SsacliLogDisk struct {
-	SsacliLogDiskData []SsacliLogDiskData
+	SsacliLogDiskData SsacliLogDiskData
 }
 
 // SsacliLogDiskData data structure for output
@@ -35,6 +35,10 @@ func parseSsacliLogDisk(s string) *SsacliLogDisk {
 
 	for _, line := range strings.Split(s, "\n") {
 		kvs := strings.Trim(line, " \t")
+		if kvs == "" {
+			continue
+		}
+
 		kv := strings.Split(kvs, ": ")
 
 		if len(kv) == 2 {
@@ -58,10 +62,6 @@ func parseSsacliLogDisk(s string) *SsacliLogDisk {
 		}
 	}
 
-	data := SsacliLogDisk{
-		SsacliLogDiskData: []SsacliLogDiskData{
-			tmp,
-		},
-	}
+	data := SsacliLogDisk{SsacliLogDiskData: tmp}
 	return &data
 }

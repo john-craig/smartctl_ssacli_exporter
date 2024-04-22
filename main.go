@@ -2,32 +2,40 @@ package main
 
 import (
 	"flag"
-	"log"
 	"net/http"
 
+	"github.com/go-kit/log/level"
 	"github.com/john-craig/smartctl_ssacli_exporter/exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/promlog"
 )
 
 var (
-	listenAddr  = flag.String("listen", ":9633", "address for exporter")
-	metricsPath = flag.String("path", "/metrics", "URL path for surfacing collected metrics")
+	listenAddr  = flag.String("web.listen-address", ":9633", "Address for exporter")
+	metricsPath = flag.String("web.telemetry-path", "/metrics", "URL path for surfacing collected metrics")
+
+	smartctlPath = flag.String("smartctl.path", "/usr/bin/smartctl", "Path to smartctl binary")
+	ssacliPath   = flag.String("ssacli.path", "/usr/bin/ssacli", "Path to ssacli binary")
+	lsscsiPath   = flag.String("lsscsi.path", "/usr/bin/lsscsci", "Path to lsscsi binary")
 )
 
 func main() {
 	flag.Parse()
 
-	prometheus.MustRegister(exporter.New())
+	promlogConfig := &promlog.Config{}
+	logger := promlog.New(promlogConfig)
+
+	prometheus.MustRegister(exporter.New(logger, *smartctlPath, *ssacliPath, *lsscsiPath))
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
 
-	log.Printf("Beginning to serve on port ", *listenAddr)
+	level.Info(logger).Log("msg", "Beginning to serve exporter", "port", *listenAddr, "metricsPath", *metricsPath)
 
 	if err := http.ListenAndServe(*listenAddr, nil); err != nil {
-		log.Fatalf("Cannot start exporter: %s", err)
+		level.Error(logger).Log("msg", "Cannot start exporter", "err", err)
 	}
 }

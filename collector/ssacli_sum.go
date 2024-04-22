@@ -1,33 +1,39 @@
 package collector
 
 import (
-	"log"
 	"os/exec"
 	"strings"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/john-craig/smartctl_ssacli_exporter/parser"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// ConID save controller slot number
-var ConID string
-var ConDev string
+var ConIDs []string
+var ConDevs []string
 
 var _ prometheus.Collector = &SsacliSumCollector{}
 
 // SsacliSumCollector Contain raid controller detail information
 type SsacliSumCollector struct {
 	id                 string
+	ssacliPath         string
+	lsscsiPath         string
+	logger             log.Logger
 	hwConSlotDesc      *prometheus.Desc
 	cacheSizeDesc      *prometheus.Desc
 	availCacheSizeDesc *prometheus.Desc
 	hwConTempDesc      *prometheus.Desc
-	cahceModuTempDesc  *prometheus.Desc
+	cacheModuTempDesc  *prometheus.Desc
 	batteryTempDesc    *prometheus.Desc
 }
 
 // NewSsacliSumCollector Create new collector
-func NewSsacliSumCollector() *SsacliSumCollector {
+func NewSsacliSumCollector(
+	logger log.Logger,
+	ssacliPath string,
+	lsscsiPath string) *SsacliSumCollector {
 	// Init labels
 	var (
 		namespace = "ssacli"
@@ -42,9 +48,13 @@ func NewSsacliSumCollector() *SsacliSumCollector {
 			"raidControllerDriverVersion",
 		}
 	)
-	// Rerutn Colected metric to ch <-
+	// Return Colected metric to ch <-
 	// Include labels
 	return &SsacliSumCollector{
+		logger: logger,
+
+		ssacliPath: ssacliPath,
+		lsscsiPath: lsscsiPath,
 		hwConSlotDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "slot"),
 			"Hardware raid controller slot usage",
@@ -53,13 +63,13 @@ func NewSsacliSumCollector() *SsacliSumCollector {
 		),
 		cacheSizeDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "cacheSize"),
-			"Hardware raid controller total cahce size",
+			"Hardware raid controller total cache size",
 			labels,
 			nil,
 		),
 		availCacheSizeDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "available_cacheSize"),
-			"Hardware raid controller total available cahce size",
+			"Hardware raid controller total available cache size",
 			labels,
 			nil,
 		),
@@ -69,7 +79,7 @@ func NewSsacliSumCollector() *SsacliSumCollector {
 			labels,
 			nil,
 		),
-		cahceModuTempDesc: prometheus.NewDesc(
+		cacheModuTempDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "temperature_cacheModule"),
 			"Hardware raid controller cache module temperature",
 			labels,
@@ -91,7 +101,7 @@ func (c *SsacliSumCollector) Describe(ch chan<- *prometheus.Desc) {
 		c.cacheSizeDesc,
 		c.availCacheSizeDesc,
 		c.hwConTempDesc,
-		c.cahceModuTempDesc,
+		c.cacheModuTempDesc,
 		c.batteryTempDesc,
 	}
 	for _, d := range ds {
@@ -99,35 +109,26 @@ func (c *SsacliSumCollector) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
-// Collect create collector
-// Get metric
-// Handle error
 func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
-	if desc, err := c.collect(ch); err != nil {
-		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
-		ch <- prometheus.NewInvalidMetric(desc, err)
-		return
-	}
-}
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Collect function called")
 
-func (c *SsacliSumCollector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
-	cmd := "ssacli ctrl all show detail"
-	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+	out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
+	level.Info(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
 
 	if err != nil {
-		log.Printf("[ERROR] smart log: \n%s\n", string(out))
-		return nil, err
+		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+		return
 	}
 
 	data := parser.ParseSsacliSum(string(out))
 
-	if data == nil {
-		log.Fatal("Unable get data from ssacli sumarry exporter")
-		return nil, nil
-	}
+	// if data == nil {
+	// 	log.Fatal("Unable get data from ssacli sumarry exporter")
+	// 	return nil, nil
+	// }
 
 	for i := range data.SsacliSumData {
-
 		var (
 			labels = []string{
 				data.SsacliSumData[i].SerialNumber,
@@ -140,7 +141,7 @@ func (c *SsacliSumCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 			}
 		)
 
-		ConID = data.SsacliSumData[i].SlotID
+		ConIDs = append(ConIDs, data.SsacliSumData[i].SlotID)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.hwConSlotDesc,
@@ -167,9 +168,9 @@ func (c *SsacliSumCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 			labels...,
 		)
 		ch <- prometheus.MustNewConstMetric(
-			c.cahceModuTempDesc,
+			c.cacheModuTempDesc,
 			prometheus.GaugeValue,
-			float64(data.SsacliSumData[i].CahceModuTemp),
+			float64(data.SsacliSumData[i].CacheModuTemp),
 			labels...,
 		)
 		ch <- prometheus.MustNewConstMetric(
@@ -183,21 +184,24 @@ func (c *SsacliSumCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 
 	// Use the `lsscsi -g` command to determine which controllers
 	// correspond to which /dev/sga path
-	cmd = "lsscsi -g"
-	out, err = exec.Command("bash", "-c", cmd).CombinedOutput()
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Invoking lsscsi binary", "lsscsiPath", c.lsscsiPath)
+	out, err = exec.Command(c.lsscsiPath, "-g").CombinedOutput()
+	level.Info(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", string(out))
 
 	if err != nil {
-		log.Printf("[ERROR] failed collecting metric %v: %v", out, err)
-		return nil, nil
+		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+		return
 	}
 
 	scsiDisks := strings.Split(string(out), "\n")
 	for _, scsiDisk := range scsiDisks {
 		scsiFields := strings.Fields(scsiDisk)
 		if scsiFields[1] == "storage" {
-			ConDev = scsiFields[6]
+			ConDevs = append(ConDevs, scsiFields[6])
 		}
 	}
 
-	return nil, nil
+	if len(ConIDs) != len(ConDevs) {
+		level.Warn(c.logger).Log("msg", "hpssacli and lsscsi returned different number of controllers")
+	}
 }

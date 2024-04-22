@@ -1,9 +1,10 @@
 package collector
 
 import (
-	"log"
 	"os/exec"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/john-craig/smartctl_ssacli_exporter/parser"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -12,13 +13,17 @@ var _ prometheus.Collector = &SsacliLogDiskCollector{}
 
 // SsacliLogDiskCollector Contain raid controller detail information
 type SsacliLogDiskCollector struct {
-	diskID    string
-	conID     string
+	diskID     string
+	conID      string
+	ssacliPath string
+
+	logger log.Logger
+
 	cylinders *prometheus.Desc
 }
 
 // NewSsacliLogDiskCollector Create new collector
-func NewSsacliLogDiskCollector(diskID, conID string) *SsacliLogDiskCollector {
+func NewSsacliLogDiskCollector(logger log.Logger, diskID, conID string, ssacliPath string) *SsacliLogDiskCollector {
 	// Init labels
 	var (
 		namespace = "ssacli"
@@ -36,8 +41,10 @@ func NewSsacliLogDiskCollector(diskID, conID string) *SsacliLogDiskCollector {
 	// Rerutn Colected metric to ch <-
 	// Include labels
 	return &SsacliLogDiskCollector{
-		diskID: diskID,
-		conID:  conID,
+		diskID:     diskID,
+		conID:      conID,
+		ssacliPath: ssacliPath,
+		logger:     logger,
 		cylinders: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "cylinders"),
 			"Logical array cylinder count",
@@ -57,54 +64,43 @@ func (c *SsacliLogDiskCollector) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
-// Collect create collector
-// Get metric
-// Handle error
 func (c *SsacliLogDiskCollector) Collect(ch chan<- prometheus.Metric) {
-	if desc, err := c.collect(ch); err != nil {
-		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
-		ch <- prometheus.NewInvalidMetric(desc, err)
-		return
-	}
-}
+	// Export logic raid status
+	level.Debug(c.logger).Log("msg", "SsacliLogDiskCollector: Collect function called")
 
-func (c *SsacliLogDiskCollector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
-	if c.diskID == "" {
-		return nil, nil
-	}
-
-	cmd := "ssacli ctrl slot=" + c.conID + " ld " + c.diskID + " show | grep ."
-	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
+	level.Debug(c.logger).Log("msg", "SsacliLogDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+	out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "ld", c.diskID, "show").CombinedOutput()
+	level.Info(c.logger).Log("msg", "SsacliLogDiskCollector: ssacli ctrl slot=N ld M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
 
 	if err != nil {
-		log.Printf("[ERROR] smart log: \n%s\n", string(out))
-		return nil, err
+		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+		return
 	}
 
 	data := parser.ParseSsacliLogDisk(string(out))
 
-	if data == nil {
-		log.Fatal("Unable get data from ssacli logical array exporter")
-		return nil, nil
-	}
+	// if data == nil {
+	// 	log.Fatal("Unable get data from ssacli logical array exporter")
+	// 	return
+	// }
 
 	var (
 		labels = []string{
-			data.SsacliLogDiskData[0].Size,
-			data.SsacliLogDiskData[0].Status,
-			data.SsacliLogDiskData[0].Caching,
-			data.SsacliLogDiskData[0].UID,
-			data.SsacliLogDiskData[0].LName,
-			data.SsacliLogDiskData[0].LID,
+			data.SsacliLogDiskData.Size,
+			data.SsacliLogDiskData.Status,
+			data.SsacliLogDiskData.Caching,
+			data.SsacliLogDiskData.UID,
+			data.SsacliLogDiskData.LName,
+			data.SsacliLogDiskData.LID,
 		}
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		c.cylinders,
 		prometheus.GaugeValue,
-		float64(data.SsacliLogDiskData[0].Cylinders),
+		float64(data.SsacliLogDiskData.Cylinders),
 		labels...,
 	)
 
-	return nil, nil
+	return
 }
