@@ -186,6 +186,10 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 	scsiDisks := strings.Split(string(out), "\n")
 	for _, scsiDisk := range scsiDisks {
 		scsiFields := strings.Fields(scsiDisk)
+		if len(scsiFields) != 7 {
+			continue
+		}
+
 		if scsiFields[1] == "storage" {
 			ConDevs = append(ConDevs, scsiFields[6])
 		}
