@@ -72,9 +72,11 @@ func parseSmartAttrs(s string) *SsacliSum {
 			case "Firmware Version":
 				sumData[contNumber-1].FirmVersion = kv[1]
 			case "Total Cache Size":
-				sumData[contNumber-1].TotalCacheSize = toFLO(kv[1])
+				cacheMem := strings.Split(kv[1], " ")
+				sumData[contNumber-1].TotalCacheSize = toFLO(cacheMem[0])
 			case "Total Cache Memory Available":
-				sumData[contNumber-1].AvailCacheSize = toFLO(kv[1])
+				cacheMem := strings.Split(kv[1], " ")
+				sumData[contNumber-1].AvailCacheSize = toFLO(cacheMem[0])
 			case "Battery/Capacitor Status":
 				sumData[contNumber-1].BatteryStatus = kv[1]
 			case "Controller Temperature (C)":
