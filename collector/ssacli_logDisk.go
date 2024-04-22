@@ -56,12 +56,7 @@ func NewSsacliLogDiskCollector(logger log.Logger, diskID, conID string, ssacliPa
 
 // Describe return all description to chanel
 func (c *SsacliLogDiskCollector) Describe(ch chan<- *prometheus.Desc) {
-	ds := []*prometheus.Desc{
-		c.cylinders,
-	}
-	for _, d := range ds {
-		ch <- d
-	}
+	prometheus.DescribeByCollect(c, ch)
 }
 
 func (c *SsacliLogDiskCollector) Collect(ch chan<- prometheus.Metric) {

@@ -67,13 +67,7 @@ func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliP
 
 // Describe return all description to chanel
 func (c *SsacliPhysDiskCollector) Describe(ch chan<- *prometheus.Desc) {
-	ds := []*prometheus.Desc{
-		c.curTemp,
-		c.maxTemp,
-	}
-	for _, d := range ds {
-		ch <- d
-	}
+	prometheus.DescribeByCollect(c, ch)
 }
 
 func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {

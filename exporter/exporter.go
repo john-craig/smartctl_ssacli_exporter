@@ -43,10 +43,7 @@ func New(
 // Describe sends all the descriptors of the collectors included to
 // the provided channel.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	collector.NewSsacliSumCollector(nil, "", "").Describe(ch)
-	collector.NewSsacliPhysDiskCollector(nil, "", "", "").Describe(ch)
-	collector.NewSsacliLogDiskCollector(nil, "", "", "").Describe(ch)
-	collector.NewSmartctlDiskCollector(nil, "", 0, "", "", nil).Describe(ch)
+	prometheus.DescribeByCollect(e, ch)
 }
 
 // Collect sends the collected metrics from each of the collectors to

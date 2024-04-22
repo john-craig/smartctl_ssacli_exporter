@@ -96,17 +96,7 @@ func NewSsacliSumCollector(
 
 // Describe return all description to chanel
 func (c *SsacliSumCollector) Describe(ch chan<- *prometheus.Desc) {
-	ds := []*prometheus.Desc{
-		c.hwConSlotDesc,
-		c.cacheSizeDesc,
-		c.availCacheSizeDesc,
-		c.hwConTempDesc,
-		c.cacheModuTempDesc,
-		c.batteryTempDesc,
-	}
-	for _, d := range ds {
-		ch <- d
-	}
+	prometheus.DescribeByCollect(c, ch)
 }
 
 func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
