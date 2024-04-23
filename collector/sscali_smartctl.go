@@ -28,9 +28,9 @@ func parseJSON(data string) gjson.Result {
 // NewSmartctlDiskCollector Create new collector
 func NewSmartctlDiskCollector(
 	logger log.Logger,
-	diskID string,
-	diskN int,
+	conID string,
 	conDev string,
+	diskN int,
 	smartctlPath string,
 	ch chan<- prometheus.Metric) *SmartctlDiskCollector {
 	level.Debug(logger).Log("msg", "SmartctlDiskCollector: NewSmartctlDiskCollector function called")
@@ -45,7 +45,7 @@ func NewSmartctlDiskCollector(
 	json := parseJSON(string(out))
 
 	return &SmartctlDiskCollector{
-		embed: NewSMARTctl(logger, json, ch)}
+		embed: NewSMARTctl(logger, json, conID, diskN, ch)}
 }
 
 // Describe return all description to chanel

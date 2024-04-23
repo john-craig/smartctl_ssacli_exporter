@@ -54,6 +54,9 @@ type SMARTDevice struct {
 	// These are used to select types of metrics.
 	interface_ string
 	protocol   string
+
+	scsi_controller_slot string
+	scsi_disk_index      string
 }
 
 // SMARTctl object
@@ -65,7 +68,11 @@ type SMARTctl struct {
 }
 
 // NewSMARTctl is smartctl constructor
-func NewSMARTctl(logger log.Logger, json gjson.Result, ch chan<- prometheus.Metric) SMARTctl {
+func NewSMARTctl(logger log.Logger,
+	json gjson.Result,
+	conID string,
+	diskN int,
+	ch chan<- prometheus.Metric) SMARTctl {
 	var model_name string
 	if obj := json.Get("model_name"); obj.Exists() {
 		model_name = obj.String()
@@ -137,6 +144,8 @@ func (smart *SMARTctl) mineExitStatus() {
 		prometheus.GaugeValue,
 		smart.json.Get("smartctl.exit_status").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -146,6 +155,8 @@ func (smart *SMARTctl) mineDevice() {
 		prometheus.GaugeValue,
 		1,
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 		smart.device.interface_,
 		smart.device.protocol,
 		smart.device.family,
@@ -173,12 +184,16 @@ func (smart *SMARTctl) mineCapacity() {
 		prometheus.GaugeValue,
 		smart.json.Get("user_capacity.blocks").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 	smart.ch <- prometheus.MustNewConstMetric(
 		metricDeviceCapacityBytes,
 		prometheus.GaugeValue,
 		smart.json.Get("user_capacity.bytes").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 	nvme_total_capacity := smart.json.Get("nvme_total_capacity")
 	if nvme_total_capacity.Exists() {
@@ -187,6 +202,8 @@ func (smart *SMARTctl) mineCapacity() {
 			prometheus.GaugeValue,
 			nvme_total_capacity.Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -198,6 +215,8 @@ func (smart *SMARTctl) mineBlockSize() {
 			prometheus.GaugeValue,
 			smart.json.Get(fmt.Sprintf("%s_block_size", blockType)).Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 			blockType,
 		)
 	}
@@ -215,6 +234,8 @@ func (smart *SMARTctl) mineInterfaceSpeed() {
 					prometheus.GaugeValue,
 					tSpeed.Get("units_per_second").Float()*tSpeed.Get("bits_per_unit").Float(),
 					smart.device.device,
+					smart.device.scsi_controller_slot,
+					smart.device.scsi_disk_index,
 					speedType,
 				)
 			}
@@ -246,6 +267,8 @@ func (smart *SMARTctl) mineDeviceAttribute() {
 				prometheus.GaugeValue,
 				attribute.Get(path).Float(),
 				smart.device.device,
+				smart.device.scsi_controller_slot,
+				smart.device.scsi_disk_index,
 				name,
 				flagsShort,
 				flagsLong,
@@ -265,6 +288,8 @@ func (smart *SMARTctl) minePowerOnSeconds() {
 			prometheus.CounterValue,
 			GetFloatIfExists(pot, "hours", 0)*60*60+GetFloatIfExists(pot, "minutes", 0)*60,
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -279,6 +304,8 @@ func (smart *SMARTctl) mineRotationRate() {
 			prometheus.GaugeValue,
 			rRate,
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -293,6 +320,8 @@ func (smart *SMARTctl) mineTemperatures() {
 				prometheus.GaugeValue,
 				value.Float(),
 				smart.device.device,
+				smart.device.scsi_controller_slot,
+				smart.device.scsi_disk_index,
 				key.String(),
 			)
 			return true
@@ -309,6 +338,8 @@ func (smart *SMARTctl) minePowerCycleCount() {
 			prometheus.CounterValue,
 			powerCycleCount.Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		return
 	}
@@ -321,6 +352,8 @@ func (smart *SMARTctl) minePowerCycleCount() {
 			prometheus.CounterValue,
 			powerCycleCount.Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		return
 	}
@@ -334,6 +367,8 @@ func (smart *SMARTctl) mineDeviceSCTStatus() {
 			prometheus.GaugeValue,
 			status.Get("device_state").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -344,6 +379,8 @@ func (smart *SMARTctl) mineNvmePercentageUsed() {
 		prometheus.CounterValue,
 		smart.json.Get("nvme_smart_health_information_log.percentage_used").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -353,6 +390,8 @@ func (smart *SMARTctl) mineNvmeAvailableSpare() {
 		prometheus.CounterValue,
 		smart.json.Get("nvme_smart_health_information_log.available_spare").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -362,6 +401,8 @@ func (smart *SMARTctl) mineNvmeAvailableSpareThreshold() {
 		prometheus.CounterValue,
 		smart.json.Get("nvme_smart_health_information_log.available_spare_threshold").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -371,6 +412,8 @@ func (smart *SMARTctl) mineNvmeCriticalWarning() {
 		prometheus.CounterValue,
 		smart.json.Get("nvme_smart_health_information_log.critical_warning").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -380,6 +423,8 @@ func (smart *SMARTctl) mineNvmeMediaErrors() {
 		prometheus.CounterValue,
 		smart.json.Get("nvme_smart_health_information_log.media_errors").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -389,6 +434,8 @@ func (smart *SMARTctl) mineNvmeNumErrLogEntries() {
 		prometheus.CounterValue,
 		smart.json.Get("nvme_smart_health_information_log.num_err_log_entries").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -428,6 +475,8 @@ func (smart *SMARTctl) mineNvmeBytesRead() {
 		// The underlying data_units_written,data_units_read are 128-bit integers
 		data_units_read.Float()*1000.0*512.0,
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -444,6 +493,8 @@ func (smart *SMARTctl) mineNvmeBytesWritten() {
 		// The underlying data_units_written,data_units_read are 128-bit integers
 		data_units_written.Float()*1000.0*512.0,
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -458,6 +509,8 @@ func (smart *SMARTctl) mineSCSIBytesRead() {
 			// that is not the responsibility of the exporter or smartctl
 			SCSIHealth.Get("read.gigabytes_processed").Float()*1e9,
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -473,6 +526,8 @@ func (smart *SMARTctl) mineSCSIBytesWritten() {
 			// that is not the responsibility of the exporter or smartctl
 			SCSIHealth.Get("write.gigabytes_processed").Float()*1e9,
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -483,6 +538,8 @@ func (smart *SMARTctl) mineSmartStatus() {
 		prometheus.GaugeValue,
 		smart.json.Get("smart_status.passed").Float(),
 		smart.device.device,
+		smart.device.scsi_controller_slot,
+		smart.device.scsi_disk_index,
 	)
 }
 
@@ -500,6 +557,8 @@ func (smart *SMARTctl) mineDeviceStatistics() {
 				prometheus.GaugeValue,
 				statistic.Get("value").Float(),
 				smart.device.device,
+				smart.device.scsi_controller_slot,
+				smart.device.scsi_disk_index,
 				table,
 				strings.TrimSpace(statistic.Get("name").String()),
 				strings.TrimSpace(statistic.Get("flags.string").String()),
@@ -519,6 +578,8 @@ func (smart *SMARTctl) mineDeviceStatistics() {
 			prometheus.GaugeValue,
 			statistic.Get("value").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 			"SATA PHY Event Counters",
 			strings.TrimSpace(statistic.Get("name").String()),
 			"V---",
@@ -545,6 +606,8 @@ func (smart *SMARTctl) mineDeviceErrorLog() {
 			prometheus.GaugeValue,
 			status.Get("count").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 			logType,
 		)
 	}
@@ -557,6 +620,8 @@ func (smart *SMARTctl) mineDeviceSelfTestLog() {
 			prometheus.GaugeValue,
 			status.Get("count").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 			logType,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
@@ -564,6 +629,8 @@ func (smart *SMARTctl) mineDeviceSelfTestLog() {
 			prometheus.GaugeValue,
 			status.Get("error_count_total").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 			logType,
 		)
 	}
@@ -576,6 +643,8 @@ func (smart *SMARTctl) mineDeviceERC() {
 			prometheus.GaugeValue,
 			status.Get("deciseconds").Float()/10.0,
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 			ercType,
 		)
 	}
@@ -589,6 +658,8 @@ func (smart *SMARTctl) mineSCSIGrownDefectList() {
 			prometheus.GaugeValue,
 			scsi_grown_defect_list.Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 	}
 }
@@ -601,48 +672,64 @@ func (smart *SMARTctl) mineSCSIErrorCounterLog() {
 			prometheus.GaugeValue,
 			SCSIHealth.Get("read.errors_corrected_by_rereads_rewrites").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricReadErrorsCorrectedByEccFast,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("read.errors_corrected_by_eccfast").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricReadErrorsCorrectedByEccDelayed,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("read.errors_corrected_by_eccdelayed").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricReadTotalUncorrectedErrors,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("read.total_uncorrected_errors").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricWriteErrorsCorrectedByRereadsRewrites,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("write.errors_corrected_by_rereads_rewrites").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricWriteErrorsCorrectedByEccFast,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("write.errors_corrected_by_eccfast").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricWriteErrorsCorrectedByEccDelayed,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("write.errors_corrected_by_eccdelayed").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		smart.ch <- prometheus.MustNewConstMetric(
 			metricWriteTotalUncorrectedErrors,
 			prometheus.GaugeValue,
 			SCSIHealth.Get("write.total_uncorrected_errors").Float(),
 			smart.device.device,
+			smart.device.scsi_controller_slot,
+			smart.device.scsi_disk_index,
 		)
 		// TODO: Should we also export the verify category?
 	}
@@ -665,6 +752,8 @@ var (
 		"Device info",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"interface",
 			"protocol",
 			"model_family",
@@ -694,6 +783,8 @@ var (
 		"Device capacity in blocks",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -702,6 +793,8 @@ var (
 		"Device capacity in bytes",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -710,6 +803,8 @@ var (
 		"NVMe device total capacity bytes",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -718,6 +813,8 @@ var (
 		"Device block size",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"blocks_type",
 		},
 		nil,
@@ -727,6 +824,8 @@ var (
 		"Device interface speed, bits per second",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"speed_type",
 		},
 		nil,
@@ -736,6 +835,8 @@ var (
 		"Device attributes",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"attribute_name",
 			"attribute_flags_short",
 			"attribute_flags_long",
@@ -749,6 +850,8 @@ var (
 		"Device power on seconds",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -757,6 +860,8 @@ var (
 		"Device rotation rate",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -765,6 +870,8 @@ var (
 		"Device temperature celsius",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"temperature_type",
 		},
 		nil,
@@ -774,6 +881,8 @@ var (
 		"Device power cycle count",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -782,6 +891,8 @@ var (
 		"Device write percentage used",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -790,6 +901,8 @@ var (
 		"Normalized percentage (0 to 100%) of the remaining spare capacity available",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -798,6 +911,8 @@ var (
 		"When the Available Spare falls below the threshold indicated in this field, an asynchronous event completion may occur. The value is indicated as a normalized percentage (0 to 100%)",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -806,6 +921,8 @@ var (
 		"This field indicates critical warnings for the state of the controller",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -814,6 +931,8 @@ var (
 		"Contains the number of occurrences where the controller detected an unrecovered data integrity error. Errors such as uncorrectable ECC, CRC checksum failure, or LBA tag mismatch are included in this field",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -822,6 +941,8 @@ var (
 		"Contains the number of Error Information log entries over the life of the controller",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -830,6 +951,8 @@ var (
 		"",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -838,6 +961,8 @@ var (
 		"",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -846,6 +971,8 @@ var (
 		"General smart status",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -854,6 +981,8 @@ var (
 		"Exit status of smartctl on device",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -862,6 +991,8 @@ var (
 		"Device state (0=active, 1=standby, 2=sleep, 3=dst, 4=offline, 5=sct)",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -870,6 +1001,8 @@ var (
 		"Device statistics",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"statistic_table",
 			"statistic_name",
 			"statistic_flags_short",
@@ -882,6 +1015,8 @@ var (
 		"Device SMART error log count",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"error_log_type",
 		},
 		nil,
@@ -891,6 +1026,8 @@ var (
 		"Device SMART self test log count",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"self_test_log_type",
 		},
 		nil,
@@ -900,6 +1037,8 @@ var (
 		"Device SMART self test log error count",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"self_test_log_type",
 		},
 		nil,
@@ -909,6 +1048,8 @@ var (
 		"Device SMART Error Recovery Control Seconds",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 			"op_type",
 		},
 		nil,
@@ -918,6 +1059,8 @@ var (
 		"Device SCSI grown defect list counter",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -926,6 +1069,8 @@ var (
 		"Read Errors Corrected by ReReads/ReWrites",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -934,6 +1079,8 @@ var (
 		"Read Errors Corrected by ECC Fast",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -942,6 +1089,8 @@ var (
 		"Read Errors Corrected by ECC Delayed",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -950,6 +1099,8 @@ var (
 		"Read Total Uncorrected Errors",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -958,6 +1109,8 @@ var (
 		"Write Errors Corrected by ReReads/ReWrites",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -966,6 +1119,8 @@ var (
 		"Write Errors Corrected by ECC Fast",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -974,6 +1129,8 @@ var (
 		"Write Errors Corrected by ECC Delayed",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)
@@ -982,6 +1139,8 @@ var (
 		"Write Total Uncorrected Errors",
 		[]string{
 			"device",
+			"scsi_controller_slot",
+			"scsi_disk_index",
 		},
 		nil,
 	)

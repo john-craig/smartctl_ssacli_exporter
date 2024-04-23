@@ -78,7 +78,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			physDisk := physDiskFields[1]
 
 			collector.NewSsacliPhysDiskCollector(e.logger, physDisk, conID, e.ssacliPath).Collect(ch)
-			collector.NewSmartctlDiskCollector(e.logger, physDisk, physDiskN, conDev, e.smartctlPath, ch).Collect(ch)
+			collector.NewSmartctlDiskCollector(e.logger, conID, conDev, physDiskN, e.smartctlPath, ch).Collect(ch)
 			physDiskN++
 		}
 
