@@ -19,6 +19,7 @@ package collector
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -89,12 +90,14 @@ func NewSMARTctl(logger log.Logger,
 		json:   json,
 		logger: logger,
 		device: SMARTDevice{
-			device:     strings.TrimPrefix(strings.TrimSpace(json.Get("device.name").String()), "/dev/"),
-			serial:     strings.TrimSpace(json.Get("serial_number").String()),
-			family:     strings.TrimSpace(GetStringIfExists(json, "model_family", "unknown")),
-			model:      strings.TrimSpace(model_name),
-			interface_: strings.TrimSpace(json.Get("device.type").String()),
-			protocol:   strings.TrimSpace(json.Get("device.protocol").String()),
+			device:               strings.TrimPrefix(strings.TrimSpace(json.Get("device.name").String()), "/dev/"),
+			scsi_controller_slot: strings.TrimSpace(conID),
+			scsi_disk_index:      strconv.Itoa(diskN),
+			serial:               strings.TrimSpace(json.Get("serial_number").String()),
+			family:               strings.TrimSpace(GetStringIfExists(json, "model_family", "unknown")),
+			model:                strings.TrimSpace(model_name),
+			interface_:           strings.TrimSpace(json.Get("device.type").String()),
+			protocol:             strings.TrimSpace(json.Get("device.protocol").String()),
 		},
 	}
 }
