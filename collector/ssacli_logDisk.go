@@ -63,9 +63,9 @@ func (c *SsacliLogDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	// Export logic raid status
 	level.Debug(c.logger).Log("msg", "SsacliLogDiskCollector: Collect function called")
 
-	level.Debug(c.logger).Log("msg", "SsacliLogDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+	level.Info(c.logger).Log("msg", "SsacliLogDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
 	out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "ld", c.diskID, "show").CombinedOutput()
-	level.Info(c.logger).Log("msg", "SsacliLogDiskCollector: ssacli ctrl slot=N ld M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
+	level.Debug(c.logger).Log("msg", "SsacliLogDiskCollector: ssacli ctrl slot=N ld M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
 
 	if err != nil {
 		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
@@ -73,11 +73,6 @@ func (c *SsacliLogDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	data := parser.ParseSsacliLogDisk(string(out))
-
-	// if data == nil {
-	// 	log.Fatal("Unable get data from ssacli logical array exporter")
-	// 	return
-	// }
 
 	var (
 		labels = []string{

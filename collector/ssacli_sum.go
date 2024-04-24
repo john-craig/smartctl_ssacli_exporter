@@ -102,9 +102,9 @@ func (c *SsacliSumCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Collect function called")
 
-	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+	level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
 	out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
-	level.Info(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
 
 	if err != nil {
 		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
@@ -112,11 +112,6 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	data := parser.ParseSsacliSum(string(out))
-
-	// if data == nil {
-	// 	log.Fatal("Unable get data from ssacli sumarry exporter")
-	// 	return nil, nil
-	// }
 
 	for i := range data.SsacliSumData {
 		var (
@@ -174,9 +169,9 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 
 	// Use the `lsscsi -g` command to determine which controllers
 	// correspond to which /dev/sga path
-	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Invoking lsscsi binary", "lsscsiPath", c.lsscsiPath)
+	level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking lsscsi binary", "lsscsiPath", c.lsscsiPath)
 	out, err = exec.Command(c.lsscsiPath, "-g").CombinedOutput()
-	level.Info(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", string(out))
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", string(out))
 
 	if err != nil {
 		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))

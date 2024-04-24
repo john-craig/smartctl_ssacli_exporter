@@ -35,9 +35,9 @@ func NewSmartctlDiskCollector(
 	ch chan<- prometheus.Metric) *SmartctlDiskCollector {
 	level.Debug(logger).Log("msg", "SmartctlDiskCollector: NewSmartctlDiskCollector function called")
 
-	level.Debug(logger).Log("msg", "SmartctlDiskCollector: Invoking smartctl binary", "smartctlPath", smartctlPath)
+	level.Info(logger).Log("msg", "SmartctlDiskCollector: Invoking smartctl binary", "smartctlPath", smartctlPath)
 	out, err := exec.Command(smartctlPath, "--json", "--info", "--health", "--attributes", "--tolerance=verypermissive", "--nocheck=standby", "--all", "-d", "cciss,"+strconv.Itoa(diskN), conDev).CombinedOutput()
-	level.Info(logger).Log("msg", "SmartctlDiskCollector: smartctl --info --health --attributes --tolerance=verypermissive --nocheck=standby --all -d ciss,N /dev/sgM", "diskN", strconv.Itoa(diskN), "conDev", conDev, "out", string(out))
+	level.Debug(logger).Log("msg", "SmartctlDiskCollector: smartctl --info --health --attributes --tolerance=verypermissive --nocheck=standby --all -d ciss,N /dev/sgM", "diskN", strconv.Itoa(diskN), "conDev", conDev, "out", string(out))
 
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to execute shell command", "out", string(out))

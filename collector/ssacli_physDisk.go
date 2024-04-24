@@ -74,9 +74,9 @@ func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	// Export logic raid status
 	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: Collect function called")
 
-	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+	level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
 	out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "pd", c.diskID, "show", "detail").CombinedOutput()
-	level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
+	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
 
 	if err != nil {
 		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
@@ -84,11 +84,6 @@ func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	data := parser.ParseSsacliPhysDisk(string(out))
-
-	// if data == nil {
-	// 	log.Fatal("Unable get data from ssacli sumarry exporter")
-	// 	return nil, nil
-	// }
 
 	var (
 		labels = []string{
