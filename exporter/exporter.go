@@ -100,7 +100,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 		level.Info(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
 		out, err := exec.Command(e.ssacliPath, "ctrl", "slot="+conID, "pd", "all", "show", "status").CombinedOutput()
-		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N pd all show status", "conId", conID, "out", string(out))
+		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N pd all show status", "conId", conID, "out", out)
 
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Failed collecting metric", "out", out, "err", err)
@@ -108,6 +108,13 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		physDiskLines := strings.Split(string(out), "\n")
+
+		// For the first time through, e.cachedPhysDiskLines will be empty,
+		// so we need to populate it
+		if i >= len(e.cachedPhysDiskLines) {
+			e.cachedPhysDiskLines = append(e.cachedPhysDiskLines, make([]string, 0))
+		}
+
 		if !reflect.DeepEqual(e.cachedPhysDiskLines[i], physDiskLines) {
 			e.cachedPhysDiskLines[i] = physDiskLines
 
@@ -135,11 +142,17 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		// Export logic raid status
 		level.Info(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
 		out, err = exec.Command(e.ssacliPath, "ctrl", "slot="+conID, "ld", "all", "show", "status").CombinedOutput()
-		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N ld all show status", "conId", conID, "out", string(out))
+		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N ld all show status", "conId", conID, "out", out)
 
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Failed collecting metric", "out", out, "err", err)
 			return
+		}
+
+		// For the first time through, e.cachedLogDiskLines will be empty,
+		// so we need to populate it
+		if i >= len(e.cachedLogDiskLines) {
+			e.cachedLogDiskLines = append(e.cachedLogDiskLines, make([]string, 0))
 		}
 
 		logDiskLines := strings.Split(string(out), "\n")
