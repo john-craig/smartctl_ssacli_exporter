@@ -19,7 +19,7 @@ var (
 	ssacliPath   = flag.String("ssacli.path", "/usr/bin/ssacli", "Path to ssacli binary")
 	lsscsiPath   = flag.String("lsscsi.path", "/usr/bin/lsscsci", "Path to lsscsi binary")
 
-	logLevel = flag.NewFlagSet("log.level", flag.ContinueOnError).String("log", "info", "debug, info, warn, error")
+	logLevel = flag.String("log.level", "info", "Filter for log level, accepts: info, debug, info, warn, error")
 )
 
 func main() {
