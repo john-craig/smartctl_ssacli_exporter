@@ -24,8 +24,8 @@ type SsacliSumCollector struct {
 	cachedData  *parser.SsacliSum
 	lastCollect time.Time
 
-	conIDs  []string
-	conDevs []string
+	ConIDs  []string
+	ConDevs []string
 
 	hwConSlotDesc      *prometheus.Desc
 	cacheSizeDesc      *prometheus.Desc
@@ -62,8 +62,8 @@ func NewSsacliSumCollector(
 		ssacliPath: ssacliPath,
 		lsscsiPath: lsscsiPath,
 
-		conIDs:  make([]string, 0),
-		conDevs: make([]string, 0),
+		ConIDs:  make([]string, 0),
+		ConDevs: make([]string, 0),
 
 		cachedData:  nil,
 		lastCollect: time.Now(),
@@ -117,6 +117,9 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 
 	data := c.cachedData
 	if c.cachedData == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
+		c.ConIDs = make([]string, 0)
+		c.ConDevs = make([]string, 0)
+
 		level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
 		out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
 		level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
@@ -145,8 +148,8 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 
 			if scsiFields[1] == "storage" {
-				if !slices.Contains(c.conDevs, scsiFields[6]) {
-					c.conDevs = append(c.conDevs, scsiFields[6])
+				if !slices.Contains(c.ConDevs, scsiFields[6]) {
+					c.ConDevs = append(c.ConDevs, scsiFields[6])
 				}
 			}
 		}
@@ -169,8 +172,8 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		)
 
-		if !slices.Contains(c.conIDs, data.SsacliSumData[i].SlotID) {
-			c.conIDs = append(c.conIDs, data.SsacliSumData[i].SlotID)
+		if !slices.Contains(c.ConIDs, data.SsacliSumData[i].SlotID) {
+			c.ConIDs = append(c.ConIDs, data.SsacliSumData[i].SlotID)
 		}
 
 		ch <- prometheus.MustNewConstMetric(
@@ -212,7 +215,7 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 
 	}
 
-	if len(c.conIDs) != len(c.conDevs) {
+	if len(c.ConIDs) != len(c.ConDevs) {
 		level.Warn(c.logger).Log("msg", "hpssacli and lsscsi returned different number of controllers")
 	}
 }

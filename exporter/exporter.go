@@ -78,8 +78,8 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	level.Debug(e.logger).Log("msg", "Exporter: Collect function called")
 	e.sumCol.Collect(ch)
-	conIDs := e.sumCol.conIDs
-	conDevs := e.sumCol.conDevs
+	conIDs := e.sumCol.ConIDs
+	conDevs := e.sumCol.ConDevs
 
 	if !reflect.DeepEqual(e.conIDs, conIDs) || !reflect.DeepEqual(e.conDevs, conDevs) {
 		// If the controllers changed, fix 'em
@@ -178,7 +178,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 func physDiskCollectorExists(s []collector.SsacliPhysDiskCollector, diskID string, conID string) bool {
 	for _, a := range s {
-		if a.diskID == diskID && a.conID == conID {
+		if a.DiskID == diskID && a.ConID == conID {
 			return true
 		}
 	}
@@ -187,7 +187,7 @@ func physDiskCollectorExists(s []collector.SsacliPhysDiskCollector, diskID strin
 
 func logDiskCollectorExists(s []collector.SsacliLogDiskCollector, diskID string, conID string) bool {
 	for _, a := range s {
-		if a.diskID == diskID && a.conID == conID {
+		if a.DiskID == diskID && a.ConID == conID {
 			return true
 		}
 	}
@@ -196,7 +196,7 @@ func logDiskCollectorExists(s []collector.SsacliLogDiskCollector, diskID string,
 
 func smartCollectorExists(s []collector.SmartctlDiskCollector, conDev string, conID string, diskN int) bool {
 	for _, a := range s {
-		if a.conDev == conDev && a.conID == conID && a.diskN == diskN {
+		if a.ConDev == conDev && a.ConID == conID && a.DiskN == diskN {
 			return true
 		}
 	}

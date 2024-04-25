@@ -16,8 +16,8 @@ var _ prometheus.Collector = &SsacliPhysDiskCollector{}
 type SsacliPhysDiskCollector struct {
 	logger log.Logger
 
-	diskID     string
-	conID      string
+	DiskID     string
+	ConID      string
 	ssacliPath string
 
 	cachedData  *parser.SsacliPhysDisk
@@ -51,8 +51,8 @@ func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliP
 	// Include labels
 	return &SsacliPhysDiskCollector{
 		logger:     logger,
-		diskID:     diskID,
-		conID:      conID,
+		DiskID:     diskID,
+		ConID:      conID,
 		ssacliPath: ssacliPath,
 
 		cachedData:  nil,
@@ -85,8 +85,8 @@ func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	data := c.cachedData
 	if c.cachedData == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
 		level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
-		out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "pd", c.diskID, "show", "detail").CombinedOutput()
-		level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
+		out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.ConID, "pd", c.DiskID, "show", "detail").CombinedOutput()
+		level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.ConID, "diskID", c.DiskID, "out", string(out))
 
 		if err != nil {
 			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
@@ -100,7 +100,7 @@ func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
 
 	var (
 		labels = []string{
-			c.diskID,
+			c.DiskID,
 			data.SsacliPhysDiskData.Status,
 			data.SsacliPhysDiskData.DriveType,
 			data.SsacliPhysDiskData.IntType,
