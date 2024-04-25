@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"os/exec"
 	"slices"
 	"strings"
@@ -218,7 +219,7 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 
 	}
 
-	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Collection completed", "data", data, "conIDs", c.ConIDs, "conDevs", c.ConDevs)
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Collection completed", "data", fmt.Sprintf("%+v", data), "conIDs", fmt.Sprintf("%+v", c.ConIDs), "conDevs", fmt.Sprintf("%+v", c.ConDevs))
 
 	if len(c.ConIDs) != len(c.ConDevs) {
 		level.Warn(c.logger).Log("msg", "hpssacli and lsscsi returned different number of controllers")
