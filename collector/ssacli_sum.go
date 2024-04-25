@@ -2,7 +2,9 @@ package collector
 
 import (
 	"os/exec"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -10,17 +12,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var ConIDs []string
-var ConDevs []string
-
 var _ prometheus.Collector = &SsacliSumCollector{}
 
 // SsacliSumCollector Contain raid controller detail information
 type SsacliSumCollector struct {
-	id                 string
-	ssacliPath         string
-	lsscsiPath         string
-	logger             log.Logger
+	logger log.Logger
+
+	ssacliPath string
+	lsscsiPath string
+
+	cachedData  *parser.SsacliSum
+	lastCollect time.Time
+
+	conIDs  []string
+	conDevs []string
+
 	hwConSlotDesc      *prometheus.Desc
 	cacheSizeDesc      *prometheus.Desc
 	availCacheSizeDesc *prometheus.Desc
@@ -55,6 +61,13 @@ func NewSsacliSumCollector(
 
 		ssacliPath: ssacliPath,
 		lsscsiPath: lsscsiPath,
+
+		conIDs:  make([]string, 0),
+		conDevs: make([]string, 0),
+
+		cachedData:  nil,
+		lastCollect: time.Now(),
+
 		hwConSlotDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "slot"),
 			"Hardware raid controller slot usage",
@@ -102,16 +115,46 @@ func (c *SsacliSumCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Collect function called")
 
-	level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
-	out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
-	level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
+	data := c.cachedData
+	if c.cachedData == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
+		level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+		out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
+		level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
 
-	if err != nil {
-		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
-		return
+		if err != nil {
+			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+			return
+		}
+
+		// Use the `lsscsi -g` command to determine which controllers
+		// correspond to which /dev/sga path
+		level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking lsscsi binary", "lsscsiPath", c.lsscsiPath)
+		out, err = exec.Command(c.lsscsiPath, "-g").CombinedOutput()
+		level.Debug(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", string(out))
+
+		if err != nil {
+			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+			return
+		}
+
+		scsiDisks := strings.Split(string(out), "\n")
+		for _, scsiDisk := range scsiDisks {
+			scsiFields := strings.Fields(scsiDisk)
+			if len(scsiFields) != 7 {
+				continue
+			}
+
+			if scsiFields[1] == "storage" {
+				if !slices.Contains(c.conDevs, scsiFields[6]) {
+					c.conDevs = append(c.conDevs, scsiFields[6])
+				}
+			}
+		}
+
+		data = parser.ParseSsacliSum(string(out))
+		c.cachedData = data
+		c.lastCollect = time.Now()
 	}
-
-	data := parser.ParseSsacliSum(string(out))
 
 	for i := range data.SsacliSumData {
 		var (
@@ -126,7 +169,9 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		)
 
-		ConIDs = append(ConIDs, data.SsacliSumData[i].SlotID)
+		if !slices.Contains(c.conIDs, data.SsacliSumData[i].SlotID) {
+			c.conIDs = append(c.conIDs, data.SsacliSumData[i].SlotID)
+		}
 
 		ch <- prometheus.MustNewConstMetric(
 			c.hwConSlotDesc,
@@ -167,30 +212,7 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 
 	}
 
-	// Use the `lsscsi -g` command to determine which controllers
-	// correspond to which /dev/sga path
-	level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking lsscsi binary", "lsscsiPath", c.lsscsiPath)
-	out, err = exec.Command(c.lsscsiPath, "-g").CombinedOutput()
-	level.Debug(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", string(out))
-
-	if err != nil {
-		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
-		return
-	}
-
-	scsiDisks := strings.Split(string(out), "\n")
-	for _, scsiDisk := range scsiDisks {
-		scsiFields := strings.Fields(scsiDisk)
-		if len(scsiFields) != 7 {
-			continue
-		}
-
-		if scsiFields[1] == "storage" {
-			ConDevs = append(ConDevs, scsiFields[6])
-		}
-	}
-
-	if len(ConIDs) != len(ConDevs) {
+	if len(c.conIDs) != len(c.conDevs) {
 		level.Warn(c.logger).Log("msg", "hpssacli and lsscsi returned different number of controllers")
 	}
 }

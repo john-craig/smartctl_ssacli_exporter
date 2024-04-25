@@ -2,6 +2,7 @@ package collector
 
 import (
 	"os/exec"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -13,11 +14,14 @@ var _ prometheus.Collector = &SsacliPhysDiskCollector{}
 
 // SsacliPhysDiskCollector Contain raid controller detail information
 type SsacliPhysDiskCollector struct {
+	logger log.Logger
+
 	diskID     string
 	conID      string
 	ssacliPath string
 
-	logger log.Logger
+	cachedData  *parser.SsacliPhysDisk
+	lastCollect time.Time
 
 	curTemp *prometheus.Desc
 	maxTemp *prometheus.Desc
@@ -46,10 +50,14 @@ func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliP
 	// Rerutn Colected metric to ch <-
 	// Include labels
 	return &SsacliPhysDiskCollector{
+		logger:     logger,
 		diskID:     diskID,
 		conID:      conID,
 		ssacliPath: ssacliPath,
-		logger:     logger,
+
+		cachedData:  nil,
+		lastCollect: time.Now(),
+
 		curTemp: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "curTemp"),
 			"Actual physical disk temperature",
@@ -74,16 +82,21 @@ func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	// Export logic raid status
 	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: Collect function called")
 
-	level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
-	out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "pd", c.diskID, "show", "detail").CombinedOutput()
-	level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
+	data := c.cachedData
+	if c.cachedData == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
+		level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
+		out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.conID, "pd", c.diskID, "show", "detail").CombinedOutput()
+		level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.conID, "diskID", c.diskID, "out", string(out))
 
-	if err != nil {
-		level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
-		return
+		if err != nil {
+			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+			return
+		}
+
+		data = parser.ParseSsacliPhysDisk(string(out))
+		c.cachedData = data
+		c.lastCollect = time.Now()
 	}
-
-	data := parser.ParseSsacliPhysDisk(string(out))
 
 	var (
 		labels = []string{

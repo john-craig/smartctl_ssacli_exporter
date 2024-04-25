@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"os/exec"
+	"reflect"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -21,6 +22,17 @@ type Exporter struct {
 	ssacliPath   string
 	lsscsiPath   string
 
+	sumCol   collector.SsacliSumCollector
+	physCols []collector.SsacliPhysDiskCollector
+	logCols  []collector.SsacliLogDiskCollector
+	smrtCols []collector.SmartctlDiskCollector
+
+	conIDs  []string
+	conDevs []string
+
+	cachedPhysDiskLines [][]string
+	cachedLogDiskLines  [][]string
+
 	logger log.Logger
 }
 
@@ -33,8 +45,23 @@ func New(
 	smartctlPath string,
 	ssacliPath string,
 	lsscsiPath string) *Exporter {
+
+	sumCol := collector.NewSsacliSumCollector(logger, ssacliPath, lsscsiPath)
+
 	return &Exporter{
-		logger:       logger,
+		logger: logger,
+
+		sumCol:   *sumCol,
+		physCols: make([]collector.SsacliPhysDiskCollector, 0),
+		logCols:  make([]collector.SsacliLogDiskCollector, 0),
+		smrtCols: make([]collector.SmartctlDiskCollector, 0),
+
+		conIDs:  make([]string, 0),
+		conDevs: make([]string, 0),
+
+		cachedPhysDiskLines: make([][]string, 0),
+		cachedLogDiskLines:  make([][]string, 0),
+
 		smartctlPath: smartctlPath,
 		ssacliPath:   ssacliPath,
 		lsscsiPath:   lsscsiPath}
@@ -50,17 +77,30 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // exporter.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	level.Debug(e.logger).Log("msg", "Exporter: Collect function called")
-	collector.NewSsacliSumCollector(e.logger, e.ssacliPath, e.lsscsiPath).Collect(ch)
-	conIDs := collector.ConIDs
-	conDevs := collector.ConDevs
+	e.sumCol.Collect(ch)
+	conIDs := e.sumCol.conIDs
+	conDevs := e.sumCol.conDevs
+
+	if !reflect.DeepEqual(e.conIDs, conIDs) || !reflect.DeepEqual(e.conDevs, conDevs) {
+		// If the controllers changed, fix 'em
+		e.physCols = make([]collector.SsacliPhysDiskCollector, 0)
+		e.logCols = make([]collector.SsacliLogDiskCollector, 0)
+		e.smrtCols = make([]collector.SmartctlDiskCollector, 0)
+
+		e.cachedLogDiskLines = make([][]string, len(e.conIDs))
+		e.cachedPhysDiskLines = make([][]string, len(e.conIDs))
+
+		e.conIDs = conIDs
+		e.conDevs = conDevs
+	}
 
 	for i := 0; i < len(conIDs); i++ {
 		conID := conIDs[i]
 		conDev := conDevs[i]
 
-		level.Debug(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
+		level.Info(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
 		out, err := exec.Command(e.ssacliPath, "ctrl", "slot="+conID, "pd", "all", "show", "status").CombinedOutput()
-		level.Info(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N pd all show status", "conId", conID, "out", string(out))
+		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N pd all show status", "conId", conID, "out", string(out))
 
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Failed collecting metric", "out", out, "err", err)
@@ -68,22 +108,34 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		physDiskLines := strings.Split(string(out), "\n")
-		physDiskN := 0
-		for _, physDiskLine := range physDiskLines {
-			if strings.TrimSpace(physDiskLine) == "" {
-				continue
+		if !reflect.DeepEqual(e.cachedPhysDiskLines[i], physDiskLines) {
+			e.cachedPhysDiskLines[i] = physDiskLines
+
+			physDiskN := 0
+			for _, physDiskLine := range physDiskLines {
+				if strings.TrimSpace(physDiskLine) == "" {
+					continue
+				}
+
+				physDiskFields := strings.Fields(physDiskLine)
+				physDisk := physDiskFields[1]
+
+				if !physDiskCollectorExists(e.physCols, physDisk, conID) {
+					e.physCols = append(e.physCols, *collector.NewSsacliPhysDiskCollector(e.logger, physDisk, conID, e.ssacliPath))
+				}
+
+				if !smartCollectorExists(e.smrtCols, conID, conDev, physDiskN) {
+					e.smrtCols = append(e.smrtCols, *collector.NewSmartctlDiskCollector(e.logger, conID, conDev, physDiskN, e.smartctlPath))
+				}
+
+				physDiskN++
 			}
-
-			physDiskFields := strings.Fields(physDiskLine)
-			physDisk := physDiskFields[1]
-
-			collector.NewSsacliPhysDiskCollector(e.logger, physDisk, conID, e.ssacliPath).Collect(ch)
-			collector.NewSmartctlDiskCollector(e.logger, conID, conDev, physDiskN, e.smartctlPath, ch).Collect(ch)
-			physDiskN++
 		}
 
 		// Export logic raid status
+		level.Info(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
 		out, err = exec.Command(e.ssacliPath, "ctrl", "slot="+conID, "ld", "all", "show", "status").CombinedOutput()
+		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N ld all show status", "conId", conID, "out", string(out))
 
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Failed collecting metric", "out", out, "err", err)
@@ -91,15 +143,62 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		logDiskLines := strings.Split(string(out), "\n")
-		for _, logDiskLine := range logDiskLines {
-			if strings.TrimSpace(logDiskLine) == "" {
-				continue
+		if reflect.DeepEqual(e.cachedLogDiskLines[i], logDiskLines) {
+			e.cachedLogDiskLines[i] = logDiskLines
+
+			for _, logDiskLine := range logDiskLines {
+				if strings.TrimSpace(logDiskLine) == "" {
+					continue
+				}
+
+				logDiskFields := strings.Fields(logDiskLine)
+				logDisk := logDiskFields[1]
+
+				if !logDiskCollectorExists(e.logCols, logDisk, conID) {
+					e.logCols = append(e.logCols, *collector.NewSsacliLogDiskCollector(e.logger, logDisk, conID, e.ssacliPath))
+				}
 			}
-
-			logDiskFields := strings.Fields(logDiskLine)
-			logDisk := logDiskFields[1]
-
-			collector.NewSsacliLogDiskCollector(e.logger, logDisk, conID, e.ssacliPath).Collect(ch)
 		}
 	}
+
+	// Now collect metrics
+	for _, physCol := range e.physCols {
+		physCol.Collect(ch)
+	}
+
+	for _, smrtCol := range e.smrtCols {
+		smrtCol.Collect(ch)
+	}
+
+	for _, logCol := range e.logCols {
+		logCol.Collect(ch)
+	}
+
+}
+
+func physDiskCollectorExists(s []collector.SsacliPhysDiskCollector, diskID string, conID string) bool {
+	for _, a := range s {
+		if a.diskID == diskID && a.conID == conID {
+			return true
+		}
+	}
+	return false
+}
+
+func logDiskCollectorExists(s []collector.SsacliLogDiskCollector, diskID string, conID string) bool {
+	for _, a := range s {
+		if a.diskID == diskID && a.conID == conID {
+			return true
+		}
+	}
+	return false
+}
+
+func smartCollectorExists(s []collector.SmartctlDiskCollector, conDev string, conID string, diskN int) bool {
+	for _, a := range s {
+		if a.conDev == conDev && a.conID == conID && a.diskN == diskN {
+			return true
+		}
+	}
+	return false
 }
