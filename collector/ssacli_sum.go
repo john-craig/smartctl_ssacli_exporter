@@ -122,21 +122,29 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 
 		level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
 		out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
-		level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", string(out))
+		level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", out)
 
 		if err != nil {
-			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", out)
 			return
+		}
+
+		data = parser.ParseSsacliSum(string(out))
+
+		for i := range data.SsacliSumData {
+			if !slices.Contains(c.ConIDs, data.SsacliSumData[i].SlotID) {
+				c.ConIDs = append(c.ConIDs, data.SsacliSumData[i].SlotID)
+			}
 		}
 
 		// Use the `lsscsi -g` command to determine which controllers
 		// correspond to which /dev/sga path
 		level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking lsscsi binary", "lsscsiPath", c.lsscsiPath)
 		out, err = exec.Command(c.lsscsiPath, "-g").CombinedOutput()
-		level.Debug(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", string(out))
+		level.Debug(c.logger).Log("msg", "SsacliSumCollector: lsscsi -g", "out", out)
 
 		if err != nil {
-			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
+			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", out)
 			return
 		}
 
@@ -154,7 +162,6 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 
-		data = parser.ParseSsacliSum(string(out))
 		c.cachedData = data
 		c.lastCollect = time.Now()
 	}
@@ -171,10 +178,6 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 				data.SsacliSumData[i].DriverVersion,
 			}
 		)
-
-		if !slices.Contains(c.ConIDs, data.SsacliSumData[i].SlotID) {
-			c.ConIDs = append(c.ConIDs, data.SsacliSumData[i].SlotID)
-		}
 
 		ch <- prometheus.MustNewConstMetric(
 			c.hwConSlotDesc,
@@ -214,6 +217,8 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 		)
 
 	}
+
+	level.Debug(c.logger).Log("msg", "SsacliSumCollector: Collection completed", "data", data, "conIDs", c.ConIDs, "conDevs", c.ConDevs)
 
 	if len(c.ConIDs) != len(c.ConDevs) {
 		level.Warn(c.logger).Log("msg", "hpssacli and lsscsi returned different number of controllers")

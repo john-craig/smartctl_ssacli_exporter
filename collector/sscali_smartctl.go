@@ -67,7 +67,7 @@ func (c *SmartctlDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	if c.embed == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
 		level.Info(c.logger).Log("msg", "SmartctlDiskCollector: Invoking smartctl binary", "smartctlPath", c.smartctlPath)
 		out, err := exec.Command(c.smartctlPath, "--json", "--info", "--health", "--attributes", "--tolerance=verypermissive", "--nocheck=standby", "--all", "-d", "cciss,"+strconv.Itoa(c.DiskN), c.ConDev).CombinedOutput()
-		level.Debug(c.logger).Log("msg", "SmartctlDiskCollector: smartctl --info --health --attributes --tolerance=verypermissive --nocheck=standby --all -d ciss,N /dev/sgM", "diskN", strconv.Itoa(c.DiskN), "conDev", c.ConDev, "out", string(out))
+		level.Debug(c.logger).Log("msg", "SmartctlDiskCollector: smartctl --info --health --attributes --tolerance=verypermissive --nocheck=standby --all -d ciss,N /dev/sgM", "diskN", strconv.Itoa(c.DiskN), "conDev", c.ConDev, "out", out)
 
 		if err != nil {
 			level.Error(c.logger).Log("msg", "Failed to execute shell command", "out", string(out))
