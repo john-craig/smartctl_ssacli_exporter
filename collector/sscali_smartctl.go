@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"os/exec"
 	"strconv"
 	"time"
@@ -76,12 +77,15 @@ func (c *SmartctlDiskCollector) Collect(ch chan<- prometheus.Metric) {
 
 		if c.embed == nil {
 			*c.embed = NewSMARTctl(c.logger, json, c.ConID, c.DiskN, ch)
+			level.Debug(c.logger).Log("msg", "SmartctlDiskCollector: New SmartCTL embed created", "embed", fmt.Sprintf("%+v", *c.embed))
 		} else {
-			c.embed.json = json
+			(*c.embed).json = json
+			level.Debug(c.logger).Log("msg", "SmartctlDiskCollector: SmartCTL embed updated", "embed", fmt.Sprintf("%+v", *c.embed))
 		}
 
 		c.lastCollect = time.Now()
 	}
 
-	c.embed.Collect()
+	level.Debug(c.logger).Log("msg", "SmartctlDiskCollector: Invoking Collect function of SMARTctl embed", "embed", fmt.Sprintf("%+v", *c.embed))
+	(*c.embed).Collect()
 }
