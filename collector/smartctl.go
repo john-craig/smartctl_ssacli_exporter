@@ -73,7 +73,7 @@ func NewSMARTctl(logger log.Logger,
 	json gjson.Result,
 	conID string,
 	diskN int,
-	ch chan<- prometheus.Metric) SMARTctl {
+	ch chan<- prometheus.Metric) *SMARTctl {
 	var model_name string
 	if obj := json.Get("model_name"); obj.Exists() {
 		model_name = obj.String()
@@ -85,7 +85,7 @@ func NewSMARTctl(logger log.Logger,
 		model_name = "unknown"
 	}
 
-	return SMARTctl{
+	return &SMARTctl{
 		ch:     ch,
 		json:   json,
 		logger: logger,
