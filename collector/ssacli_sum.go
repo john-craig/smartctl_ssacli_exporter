@@ -21,6 +21,7 @@ type SsacliSumCollector struct {
 
 	ssacliPath string
 	lsscsiPath string
+	sudoPath   string
 
 	cachedData  *parser.SsacliSum
 	lastCollect time.Time
@@ -40,7 +41,8 @@ type SsacliSumCollector struct {
 func NewSsacliSumCollector(
 	logger log.Logger,
 	ssacliPath string,
-	lsscsiPath string) *SsacliSumCollector {
+	lsscsiPath string,
+	sudoPath string) *SsacliSumCollector {
 	// Init labels
 	var (
 		namespace = "ssacli"
@@ -62,6 +64,7 @@ func NewSsacliSumCollector(
 
 		ssacliPath: ssacliPath,
 		lsscsiPath: lsscsiPath,
+		sudoPath:   sudoPath,
 
 		ConIDs:  make([]string, 0),
 		ConDevs: make([]string, 0),
@@ -122,7 +125,7 @@ func (c *SsacliSumCollector) Collect(ch chan<- prometheus.Metric) {
 		c.ConDevs = make([]string, 0)
 
 		level.Info(c.logger).Log("msg", "SsacliSumCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
-		out, err := exec.Command(c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
+		out, err := exec.Command(c.sudoPath, c.ssacliPath, "ctrl", "all", "show", "detail").CombinedOutput()
 		level.Debug(c.logger).Log("msg", "SsacliSumCollector: ssacli ctrl all show detail", "out", out)
 
 		if err != nil {

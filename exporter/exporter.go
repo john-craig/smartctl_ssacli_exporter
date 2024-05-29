@@ -21,6 +21,7 @@ type Exporter struct {
 	smartctlPath string
 	ssacliPath   string
 	lsscsiPath   string
+	sudoPath     string
 
 	sumCol   collector.SsacliSumCollector
 	physCols []collector.SsacliPhysDiskCollector
@@ -44,9 +45,10 @@ func New(
 	logger log.Logger,
 	smartctlPath string,
 	ssacliPath string,
-	lsscsiPath string) *Exporter {
+	lsscsiPath string,
+	sudoPath string) *Exporter {
 
-	sumCol := collector.NewSsacliSumCollector(logger, ssacliPath, lsscsiPath)
+	sumCol := collector.NewSsacliSumCollector(logger, ssacliPath, lsscsiPath, sudoPath)
 
 	return &Exporter{
 		logger: logger,
@@ -64,7 +66,8 @@ func New(
 
 		smartctlPath: smartctlPath,
 		ssacliPath:   ssacliPath,
-		lsscsiPath:   lsscsiPath}
+		lsscsiPath:   lsscsiPath,
+		sudoPath:     sudoPath}
 }
 
 // Describe sends all the descriptors of the collectors included to
@@ -99,7 +102,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		conDev := conDevs[i]
 
 		level.Info(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
-		out, err := exec.Command(e.ssacliPath, "ctrl", "slot="+conID, "pd", "all", "show", "status").CombinedOutput()
+		out, err := exec.Command(e.sudoPath, e.ssacliPath, "ctrl", "slot="+conID, "pd", "all", "show", "status").CombinedOutput()
 		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N pd all show status", "conId", conID, "out", out)
 
 		if err != nil {
@@ -128,7 +131,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				physDisk := physDiskFields[1]
 
 				if !physDiskCollectorExists(e.physCols, physDisk, conID) {
-					e.physCols = append(e.physCols, *collector.NewSsacliPhysDiskCollector(e.logger, physDisk, conID, e.ssacliPath))
+					e.physCols = append(e.physCols, *collector.NewSsacliPhysDiskCollector(e.logger, physDisk, conID, e.ssacliPath, e.sudoPath))
 				}
 
 				if !smartCollectorExists(e.smrtCols, conID, conDev, physDiskN) {
@@ -141,7 +144,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 		// Export logic raid status
 		level.Info(e.logger).Log("msg", "Exporter: Invoking ssacli binary", "ssacliPath", e.ssacliPath)
-		out, err = exec.Command(e.ssacliPath, "ctrl", "slot="+conID, "ld", "all", "show", "status").CombinedOutput()
+		out, err = exec.Command(e.sudoPath, e.ssacliPath, "ctrl", "slot="+conID, "ld", "all", "show", "status").CombinedOutput()
 		level.Debug(e.logger).Log("msg", "Exporter: ssacli ctrl slot=N ld all show status", "conId", conID, "out", out)
 
 		if err != nil {
@@ -168,7 +171,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				logDisk := logDiskFields[1]
 
 				if !logDiskCollectorExists(e.logCols, logDisk, conID) {
-					e.logCols = append(e.logCols, *collector.NewSsacliLogDiskCollector(e.logger, logDisk, conID, e.ssacliPath))
+					e.logCols = append(e.logCols, *collector.NewSsacliLogDiskCollector(e.logger, logDisk, conID, e.ssacliPath, e.sudoPath))
 				}
 			}
 		}

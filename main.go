@@ -18,6 +18,7 @@ var (
 	smartctlPath = flag.String("smartctl.path", "/usr/bin/smartctl", "Path to smartctl binary")
 	ssacliPath   = flag.String("ssacli.path", "/usr/bin/ssacli", "Path to ssacli binary")
 	lsscsiPath   = flag.String("lsscsi.path", "/usr/bin/lsscsci", "Path to lsscsi binary")
+	sudoPath     = flag.String("sudo.path", "/usr/bin/sudo", "Path to sudo binary")
 
 	logLevel = flag.String("log.level", "info", "Filter for log level, accepts: info, debug, info, warn, error")
 )
@@ -29,7 +30,7 @@ func main() {
 	logger := promlog.New(promlogConfig)
 	logger = level.NewFilter(logger, level.Allow(level.ParseDefault(*logLevel, level.InfoValue())))
 
-	prometheus.MustRegister(exporter.New(logger, *smartctlPath, *ssacliPath, *lsscsiPath))
+	prometheus.MustRegister(exporter.New(logger, *smartctlPath, *ssacliPath, *lsscsiPath, *sudoPath))
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

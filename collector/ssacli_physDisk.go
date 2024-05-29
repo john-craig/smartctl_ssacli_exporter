@@ -19,6 +19,7 @@ type SsacliPhysDiskCollector struct {
 	DiskID     string
 	ConID      string
 	ssacliPath string
+	sudoPath   string
 
 	cachedData  *parser.SsacliPhysDisk
 	lastCollect time.Time
@@ -28,7 +29,7 @@ type SsacliPhysDiskCollector struct {
 }
 
 // NewSsacliPhysDiskCollector Create new collector
-func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliPath string) *SsacliPhysDiskCollector {
+func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliPath string, sudoPath string) *SsacliPhysDiskCollector {
 	// Init labels
 	var (
 		namespace = "ssacli"
@@ -54,6 +55,7 @@ func NewSsacliPhysDiskCollector(logger log.Logger, diskID, conID string, ssacliP
 		DiskID:     diskID,
 		ConID:      conID,
 		ssacliPath: ssacliPath,
+		sudoPath:   sudoPath,
 
 		cachedData:  nil,
 		lastCollect: time.Now(),
@@ -85,7 +87,7 @@ func (c *SsacliPhysDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	data := c.cachedData
 	if c.cachedData == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
 		level.Info(c.logger).Log("msg", "SsacliPhysDiskCollector: Invoking ssacli binary", "ssacliPath", c.ssacliPath)
-		out, err := exec.Command(c.ssacliPath, "ctrl", "slot="+c.ConID, "pd", c.DiskID, "show", "detail").CombinedOutput()
+		out, err := exec.Command(c.sudoPath, c.ssacliPath, "ctrl", "slot="+c.ConID, "pd", c.DiskID, "show", "detail").CombinedOutput()
 		level.Debug(c.logger).Log("msg", "SsacliPhysDiskCollector: ssacli ctrl slot=N pd M show", "conID", c.ConID, "diskID", c.DiskID, "out", string(out))
 
 		if err != nil {
