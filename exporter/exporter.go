@@ -135,7 +135,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				}
 
 				if !smartCollectorExists(e.smrtCols, conID, conDev, physDiskN) {
-					e.smrtCols = append(e.smrtCols, *collector.NewSmartctlDiskCollector(e.logger, conID, conDev, physDiskN, e.smartctlPath))
+					e.smrtCols = append(e.smrtCols, *collector.NewSmartctlDiskCollector(e.logger, conID, conDev, physDiskN, e.smartctlPath, e.sudoPath))
 				}
 
 				physDiskN++

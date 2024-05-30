@@ -19,6 +19,7 @@ type SmartctlDiskCollector struct {
 	logger log.Logger
 
 	smartctlPath string
+	sudoPath     string
 
 	ConID  string
 	ConDev string
@@ -43,7 +44,8 @@ func NewSmartctlDiskCollector(
 	conID string,
 	conDev string,
 	diskN int,
-	smartctlPath string) *SmartctlDiskCollector {
+	smartctlPath string,
+	sudoPath string) *SmartctlDiskCollector {
 	level.Debug(logger).Log("msg", "SmartctlDiskCollector: NewSmartctlDiskCollector function called")
 
 	return &SmartctlDiskCollector{
@@ -52,6 +54,7 @@ func NewSmartctlDiskCollector(
 		ConDev:       conDev,
 		DiskN:        diskN,
 		smartctlPath: smartctlPath,
+		sudoPath:     sudoPath,
 		lastCollect:  time.Now(),
 		embed:        nil}
 }
@@ -67,7 +70,7 @@ func (c *SmartctlDiskCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *SmartctlDiskCollector) Collect(ch chan<- prometheus.Metric) {
 	if c.embed == nil || time.Now().After(c.lastCollect.Add(time.Minute)) {
 		level.Info(c.logger).Log("msg", "SmartctlDiskCollector: Invoking smartctl binary", "smartctlPath", c.smartctlPath)
-		out, err := exec.Command(c.smartctlPath, "--json", "--info", "--health", "--attributes", "--tolerance=verypermissive", "--nocheck=standby", "--all", "-d", "cciss,"+strconv.Itoa(c.DiskN), c.ConDev).CombinedOutput()
+		out, err := exec.Command(c.sudoPath, c.smartctlPath, "--json", "--info", "--health", "--attributes", "--tolerance=verypermissive", "--nocheck=standby", "--all", "-d", "cciss,"+strconv.Itoa(c.DiskN), c.ConDev).CombinedOutput()
 		level.Debug(c.logger).Log("msg", "SmartctlDiskCollector: smartctl --info --health --attributes --tolerance=verypermissive --nocheck=standby --all -d ciss,N /dev/sgM", "diskN", strconv.Itoa(c.DiskN), "conDev", c.ConDev, "out", out)
 
 		if err != nil {
